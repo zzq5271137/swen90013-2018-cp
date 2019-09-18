@@ -4,20 +4,17 @@ import Avatar from "@material-ui/core/Avatar";
 import Card from "@material-ui/core/Card";
 import CardContent from "@material-ui/core/CardContent";
 import CardHeader from "@material-ui/core/CardHeader";
-import Button from "@material-ui/core/Button";
 import Divider from "@material-ui/core/Divider";
 import red from "@material-ui/core/colors/red";
 import Typography from "@material-ui/core/Typography";
 import {Link} from "react-router-dom";
+import grey from "@material-ui/core/colors/grey"
 
 const styles = theme => ({
     card: {
-        // maxWidth: 400,
-        width: 350,
-        height: 170,
-        marginBottom: 10,
-        marginLeft: 10,
-        marginRight: 10
+        width: "96%",
+        margin: 10,
+        overflow: "auto",
     },
     avatar: {
         backgroundColor: red[500]
@@ -27,41 +24,62 @@ const styles = theme => ({
         width: "100%",
         textDecoration: "none",
         "&:hover": {
-            backgroundColor: "#f5f5f5"
+        backgroundColor: grey[200],
+        textDecoration: "none",
         },
         "&:active": {
-            backgroundColor: "#ADB8C1"
+        backgroundColor: grey[300]
         }
+    },
+    cardHeader: {
+        paddingBottom: 0
+    },
+    cardContent: {
+        paddingTop: 12,
+        paddingBottom: 0,
     }
 });
 
 class ProposalCard extends React.Component {
+
+    _checkSubjectExists = proposal => {
+        if ('subject' in proposal) {
+            return proposal.subject.name;
+        } else {
+            return " "
+        }
+    }
+
     render() {
-        const {classes, id} = this.props;
+        const {classes, id, proposal} = this.props;
         return (
             <Card className={classes.card}>
                 <Link
                     to={`/dashboard/proposals/${id}`}
-                    id={this.props.id}
+                    id={id}
                     className={classes.link}
                 >
                     <CardHeader
                         avatar={
-                            <Avatar
-                                className={classes.avatar}>{this.props.initial}</Avatar>
+                            <Avatar className={classes.avatar}>
+                                {proposal.name.slice(0, 1).toUpperCase()}
+                            </Avatar>
                         }
-                        title={this.props.title}
-                        subheader={this.props.organisation}
+                        title={proposal.name}
+                        subheader={proposal.client.organisation.name}
+                        className={classes.cardHeader}
                     />
-                    <CardContent>
-                        <Typography variant="overline" align="left">
-                            Client: {this.props.client}
+                    <CardContent className={classes.cardContent}>
+                        <Typography variant="overline" align="left"
+                                    style={{marginBottom: 5}}>
+                            Client: {proposal.client.firstName + " " + proposal.client.lastName}
                         </Typography>
 
-                        <Divider component="li" paddingTop="20"/>
+                        <Divider/>
 
-                        <Typography component="p" variant="overline">
-                            Supervisor: {this.props.supervisor}
+                        <Typography component="p" variant="overline"
+                                    style={{marginTop: 5}}>
+                            Subject: {this._checkSubjectExists(proposal)}
                         </Typography>
                     </CardContent>
                 </Link>
@@ -71,3 +89,4 @@ class ProposalCard extends React.Component {
 }
 
 export default withStyles(styles)(ProposalCard);
+

@@ -1,0 +1,11 @@
+snyk:
+  allow_failure: true
+  stage: test
+  image: node:7.5.0-alpine
+  script:
+    - pushd .
+    - npm i && snyk test
+    - popd
+  only:
+    refs:
+    - branches

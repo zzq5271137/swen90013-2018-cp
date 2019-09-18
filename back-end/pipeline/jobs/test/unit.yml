@@ -1,0 +1,11 @@
+unit:
+  allow_failure: true
+  stage: test
+  image: node:7.5.0-alpine
+  script:
+    - pushd .
+    - npm run test
+    - popd
+  only:
+    refs:
+    - branches
