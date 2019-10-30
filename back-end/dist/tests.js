@@ -178,7 +178,7 @@ describe("proposal", function () {
                 case 0:
                     supervisorFirstName = "patanamon";
                     supervisorLastName = "thongtanunam";
-                    acceptProposalBody = { subjectId: "Math", acceptReason: "good proposal" };
+                    acceptProposalBody = { subjectName: "Math", acceptReason: "good proposal" };
                     proposalId = "5d4f7769e627a9001120c9f1";
                     acceptProposalUrl = "api/proposal/" + proposalId + "/accept";
                     return [4 /*yield*/, main_1.post(acceptProposalUrl, acceptProposalBody)];

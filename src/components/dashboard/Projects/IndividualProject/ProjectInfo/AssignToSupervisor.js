@@ -7,7 +7,6 @@ import Dialog from "@material-ui/core/Dialog";
 import DialogTitle from "@material-ui/core/DialogTitle";
 import DialogContent from "@material-ui/core/DialogContent";
 import FormControl from "@material-ui/core/FormControl";
-import InputLabel from "@material-ui/core/InputLabel";
 import Select from "@material-ui/core/Select";
 import Input from "@material-ui/core/Input";
 import DialogActions from "@material-ui/core/DialogActions";
@@ -15,6 +14,8 @@ import Paper from "@material-ui/core/Paper";
 import Grid from "@material-ui/core/Grid";
 import store from "../../../../../store";
 import {updateProjectAction} from "../../../../../store/actionCreators";
+import {grey} from "@material-ui/core/colors";
+import { LoginContext } from "../../../../admin/LoginProvider";
 
 const styles = theme => ({
     showSup: {
@@ -47,9 +48,23 @@ const styles = theme => ({
             color: "#ffffff",
         }
     },
+    confirmButton: {
+        backgroundColor: "#094183",
+        color: "#FFFFFF",
+        "&:hover": {
+            backgroundColor: "#4074B2"
+        }
+    },
+    discardButton: {
+        color: "#094183"
+    },
 });
 
+var userName;
+
 class AssignToSupervisor extends React.Component {
+    static contextType = LoginContext;
+
     constructor(props) {
         super(props);
 
@@ -97,14 +112,16 @@ class AssignToSupervisor extends React.Component {
                     <DialogContent>
                         <form className={classes.container}>
                             <FormControl className={classes.formControl}>
-                                <InputLabel
-                                    htmlFor="sp-native-simple">Supervisors</InputLabel>
+                                <h6 style={{color: grey[800]}}>
+                                    Supervisors
+                                </h6>
                                 <Select
                                     native
                                     onChange={e => this._handleSelect(e)}
                                     input={<Input id="sp-native-simple"/>}
+                                    defaultValue={project.supervisorId}
                                 >
-                                    <option value=""/>
+                                    <option value="">None</option>
                                     {supervisors.map((sp, index) => (
                                         <option
                                             key={index}
@@ -118,11 +135,11 @@ class AssignToSupervisor extends React.Component {
                         </form>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={this._handleClose} color="primary">
-                            Cancel
-                        </Button>
-                        <Button onClick={this._handleOK} color="primary">
+                        <Button onClick={this._handleOK} color="primary" className={classes.confirmButton}>
                             Ok
+                        </Button>
+                        <Button onClick={this._handleClose} color="primary" className={classes.discardButton}>
+                            Cancel
                         </Button>
                     </DialogActions>
                 </Dialog>
@@ -130,6 +147,9 @@ class AssignToSupervisor extends React.Component {
         );
     }
 
+    componentDidMount() {
+        userName = this.context;
+    }
     _showSupervisor = (supervisorId) => {
         const {supervisors} = this.props;
         let supervisorName = "NO SUPERVISOR ASSIGNED";
@@ -157,23 +177,35 @@ class AssignToSupervisor extends React.Component {
         const {selectedSupervisorId} = this.state;
         const {project, supervisors} = this.props;
         project.supervisorId = selectedSupervisorId;
+        var text;
+
+        if (selectedSupervisorId === "") {
+            text = "removed the supervisor assigned to the project."
+        } else {
+            text = "assigned the project to " + this._showSupervisor(project.supervisorId) + "."
+        };
+
+        // Add note to project
+        var newNote = {
+            text: text,
+            date: Date.now().toString(),    // Date is represented as an integer, stored as a string
+            userName: userName.state.userName
+        };
+        var notes = project.notes;
+        if (notes) {
+            notes.push(newNote);
+        } else {
+            notes = [newNote];
+        }
+        project.notes = notes;
+
+        // Update project to DB
         const updateProjAction = updateProjectAction(project._id, project);
         store.dispatch(updateProjAction);
         this.setState({
             selectedSupervisorId: "",
             open: false
         });
-
-        let spName = "";
-        supervisors.forEach(sp => {
-            if (sp._id === selectedSupervisorId)
-                spName = sp.firstName + " " + sp.lastName;
-        });
-        if(spName === "") {
-            alert("Unassign this project.");
-        } else {
-            alert("Assign this project to " + spName + ".");
-        }
     };
 
 }

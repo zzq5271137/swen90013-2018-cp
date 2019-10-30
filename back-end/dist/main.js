@@ -1,14 +1,11 @@
 "use strict";
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
+var __assign = (this && this.__assign) || Object.assign || function(t) {
+    for (var s, i = 1, n = arguments.length; i < n; i++) {
+        s = arguments[i];
+        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+            t[p] = s[p];
+    }
+    return t;
 };
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -115,7 +112,7 @@ app.use((req, res, next) => {
  */
 var userMicroserviceUrl = "http://35.244.89.250";
 var projectMicroserviceUrl = "http://35.247.162.193";
-var messageMicroserviceUrl = "http://35.197.167.244";
+var messageMicroserviceUrl = "localhost";
 var port = 13000;
 exports.Url = "http://localhost:" + port;
 /**
@@ -157,37 +154,13 @@ app.post('/api/login', passport_1.default.authenticate('ldapauth'), function (re
 /**
  * project routes
  */
-app.get('/api/project', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var projects_, projects, projectDetails;
-    var _this = this;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0: return [4 /*yield*/, exports.get(projectMicroserviceUrl + "/project")];
-            case 1:
-                projects_ = _a.sent();
-                if (!projects_)
-                    return [2 /*return*/, res.status(400).send("get projects failed: project microservice returned undefined")];
-                projects = JSON.parse(projects_);
-                return [4 /*yield*/, Promise.all(projects.map(function (project) { return __awaiter(_this, void 0, void 0, function () {
-                        var result;
-                        return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0: return [4 /*yield*/, addDetailsToProject(project)];
-                                case 1:
-                                    result = _a.sent();
-                                    if (typeof result == "string")
-                                        return [2 /*return*/, project];
-                                    return [2 /*return*/, result];
-                            }
-                        });
-                    }); }))];
-            case 2:
-                projectDetails = _a.sent();
-                res.status(200).send(projectDetails);
-                return [2 /*return*/];
-        }
+app.get('/api/project', function (req, res) {
+    request_1.default.get(projectMicroserviceUrl + "/project", {}, function (err, res_, body) {
+        if (err)
+            res.status(400).send(err);
+        res.status(200).send(body);
     });
-}); });
+});
 app.post('/api/project', function (req, res) {
     var body = req.body;
     request_1.default.post(projectMicroserviceUrl + "/project", { json: body }, function (err, res_, body_) {
@@ -196,73 +169,12 @@ app.post('/api/project', function (req, res) {
         res.status(200).send(body_);
     });
 });
-function addDetailsToProject(project) {
-    return __awaiter(this, void 0, void 0, function () {
-        var proposalId, proposalString, proposal, clientId, clientString, client, productsString, products, products_, projectDetail_;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    proposalId = project.proposalId;
-                    if (!proposalId)
-                        return [2 /*return*/, "get project failed: project does not have proposalId"];
-                    return [4 /*yield*/, exports.get(projectMicroserviceUrl + "/proposal/" + project.proposalId)];
-                case 1:
-                    proposalString = _a.sent();
-                    if (!proposalString)
-                        return [2 /*return*/, "get project failed: project microservice returned undefined for proposal"];
-                    proposal = JSON.parse(proposalString);
-                    if (!proposal)
-                        return [2 /*return*/, "get project failed: project microservice return invalid proposal"];
-                    clientId = proposal.clientId;
-                    if (!clientId)
-                        return [2 /*return*/, "get project failed: proposal does not have client id"];
-                    return [4 /*yield*/, exports.get(userMicroserviceUrl + "/client/" + clientId)];
-                case 2:
-                    clientString = _a.sent();
-                    if (!clientString)
-                        return [2 /*return*/, "get project failed: user microservice returned undefined for client"];
-                    client = JSON.parse(clientString);
-                    return [4 /*yield*/, exports.get(projectMicroserviceUrl + "/product")];
-                case 3:
-                    productsString = _a.sent();
-                    if (!productsString)
-                        return [2 /*return*/, "get project failed: project microservice returned undefined for products"];
-                    products = JSON.parse(productsString);
-                    products_ = products.filter(function (p) { return p.projectId == project._id; });
-                    projectDetail_ = __assign({}, project, { proposal: __assign({}, proposal, { client: client }), products: products_ });
-                    return [2 /*return*/, projectDetail_];
-            }
-        });
-    });
-}
-app.get('/api/project/:id', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var id, project_, project, result;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0:
-                id = req.params.id;
-                return [4 /*yield*/, exports.get(projectMicroserviceUrl + "/project/" + id)];
-            case 1:
-                project_ = _a.sent();
-                if (!project_)
-                    return [2 /*return*/, "get project failed: project microservice returned undefined for project"];
-                project = JSON.parse(project_);
-                return [4 /*yield*/, addDetailsToProject(project)];
-            case 2:
-                result = _a.sent();
-                if (typeof result == "string")
-                    return [2 /*return*/, res.status(400).send(result)];
-                return [2 /*return*/, res.status(200).json(result)];
-        }
-    });
-}); });
-app.put('/api/project/:id', function (req, res) {
+app.get('/api/project/:id', function (req, res) {
     var id = req.params.id;
-    var body = req.body;
-    request_1.default.put(projectMicroserviceUrl + "/project/" + id, { json: body }, function (err, res_, body_) {
+    request_1.default.get(projectMicroserviceUrl + "/project/" + id, {}, function (err, res_, body) {
         if (err)
             res.status(400).send(err);
-        res.status(200).send(body_);
+        res.status(200).send(body);
     });
 });
 /**
@@ -313,6 +225,15 @@ app.post('/api/proposal', function (req, res) {
         res.status(200).send(body_);
     });
 });
+app.post('/api/proposal/:id/note', function (req, res) {
+    var body = req.body;
+    var id = req.params.id;
+    request_1.default.post(projectMicroserviceUrl + "/proposal/" + id + "/note", { json: body }, function (err, res_, body_) {
+        if (err)
+            res.status(400).send(err);
+        res.status(200).send(body_);
+    });
+});
 app.post('/api/proposal/:id/accept', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
     var body, proposalId, proposalString, proposal, proposal_, updateProposal, project, newProject;
     return __generator(this, function (_a) {
@@ -328,7 +249,7 @@ app.post('/api/proposal/:id/accept', function (req, res) { return __awaiter(_thi
                 if (!proposalString)
                     return [2 /*return*/, res.status(400).send("accept proposal failed: could not find proposal with id " + proposalId)];
                 proposal = JSON.parse(proposalString);
-                proposal_ = __assign({}, proposal, { status: "approved", notes: (proposal.notes ? proposal.notes : []).concat([({ text: body.acceptReason, date: "" + Date.now() })]), subjectId: body.subjectId });
+                proposal_ = __assign({}, proposal, { status: "approved", notes: (proposal.notes ? proposal.notes : []).concat([({ text: body.acceptReason, date: "" + Date.now() })]) });
                 return [4 /*yield*/, exports.put(projectMicroserviceUrl + "/proposal/" + proposalId, proposal_)];
             case 2:
                 updateProposal = _a.sent();
@@ -399,7 +320,6 @@ app.post('/api/proposal/submit', function (req, res) { return __awaiter(_this, v
                     secondaryContactEmail: body.secondaryContactEmail,
                     organisation: {
                         name: body.organisationName,
-                        industryType: body.industryType,
                         description: body.organisationBrief,
                         size: body.size,
                         number: parseFloat(body.officeNumber)
@@ -436,32 +356,14 @@ app.post('/api/proposal/submit', function (req, res) { return __awaiter(_this, v
         }
     });
 }); });
-app.get('/api/proposal/:id', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var id, proposal_, proposal, clientId, clientString, client, proposalDetail_;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0:
-                id = req.params.id;
-                return [4 /*yield*/, exports.get(projectMicroserviceUrl + "/proposal/" + id)];
-            case 1:
-                proposal_ = _a.sent();
-                if (!proposal_)
-                    return [2 /*return*/, res.status(400).send("get proposal failed: project microservice returned undefined for proposal")];
-                proposal = JSON.parse(proposal_);
-                clientId = proposal.clientId;
-                if (!clientId)
-                    return [2 /*return*/, proposal];
-                return [4 /*yield*/, exports.get(userMicroserviceUrl + "/client/" + proposal.clientId)];
-            case 2:
-                clientString = _a.sent();
-                if (!clientString)
-                    return [2 /*return*/, res.status(400).send("get proposal failed: user microservice returned undefined for client")];
-                client = JSON.parse(clientString);
-                proposalDetail_ = __assign({}, proposal, { client: client });
-                return [2 /*return*/, res.status(200).json(proposalDetail_)];
-        }
+app.get('/api/proposal/:id', function (req, res) {
+    var id = req.params.id;
+    request_1.default.get(projectMicroserviceUrl + "/proposal/" + id, {}, function (err, res_, body) {
+        if (err)
+            res.status(400).send(err);
+        res.status(200).send(body);
     });
-}); });
+});
 app.put('/api/proposal/:id', function (req, res) {
     var id = req.params.id;
     var body = req.body;
@@ -535,141 +437,23 @@ app.get('/api/client/:id', function (req, res) {
         res.status(200).send(body);
     });
 });
-app.put('/api/client/:id', function (req, res) {
+app.put('/api/client', function (req, res) {
     var body = req.body;
-    var id = req.params.id;
-    request_1.default.put(userMicroserviceUrl + "/client/" + id, { json: body }, function (err, res_, body_) {
+    request_1.default.post(userMicroserviceUrl + "/client", { json: body }, function (err, res_, body_) {
         if (err)
             res.status(400).send(err);
         res.status(200).send(body_);
     });
 });
 /**
- * supervisor routes
+ * organisation routes
  */
-app.get('/api/supervisor', function (req, res) {
-    request_1.default.get(userMicroserviceUrl + "/supervisor", {}, function (err, res_, body) {
+app.get('/api/organization/:id', function (req, res) {
+    var id = req.params.id;
+    request_1.default.get(userMicroserviceUrl + "/organization/" + id, {}, function (err, res_, body) {
         if (err)
             res.status(400).send(err);
         res.status(200).send(body);
-    });
-});
-app.post('/api/supervisor', function (req, res) {
-    var body = req.body;
-    request_1.default.post(userMicroserviceUrl + "/supervisor", { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-app.get('/api/supervisor/:id', function (req, res) {
-    var id = req.params.id;
-    request_1.default.get(userMicroserviceUrl + "/supervisor/" + id, {}, function (err, res_, body) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).json(JSON.parse(body));
-    });
-});
-/**
- * coordinator routes
- */
-app.post('/api/coordinator', function (req, res) {
-    var body = req.body;
-    request_1.default.post(userMicroserviceUrl + "/coordinator", { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-app.get('/api/coordinator', function (req, res) {
-    request_1.default.get(userMicroserviceUrl + "/coordinator", {}, function (err, res_, body) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).json(JSON.parse(body));
-    });
-});
-app.put('/api/coordinator/:id', function (req, res) {
-    var body = req.body;
-    var id = req.params.id;
-    request_1.default.put(userMicroserviceUrl + "/coordinator/" + id, { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-/**
- * subject routes
- */
-app.get('/api/subject', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var subjects_, subjects, subjectDetails;
-    var _this = this;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0: return [4 /*yield*/, exports.get(userMicroserviceUrl + "/subject")];
-            case 1:
-                subjects_ = _a.sent();
-                if (!subjects_)
-                    return [2 /*return*/, res.status(400).send("get subjects failed: user microservice returned undefined")];
-                subjects = JSON.parse(subjects_);
-                return [4 /*yield*/, Promise.all(subjects.map(function (subject) { return __awaiter(_this, void 0, void 0, function () {
-                        var coordinatorId, coordinatorString, coordinator, subjectDetails_;
-                        return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0:
-                                    coordinatorId = subject.coordinatorId;
-                                    if (!coordinatorId)
-                                        return [2 /*return*/, subject];
-                                    return [4 /*yield*/, exports.get(userMicroserviceUrl + "/coordinator/" + subject.coordinatorId)];
-                                case 1:
-                                    coordinatorString = _a.sent();
-                                    if (!coordinatorString)
-                                        return [2 /*return*/, subjects];
-                                    coordinator = JSON.parse(coordinatorString);
-                                    subjectDetails_ = __assign({}, subject, { coordinator: coordinator });
-                                    return [2 /*return*/, subjectDetails_];
-                            }
-                        });
-                    }); }))];
-            case 2:
-                subjectDetails = _a.sent();
-                res.status(200).send(subjectDetails);
-                return [2 /*return*/];
-        }
-    });
-}); });
-app.post('/api/subject', function (req, res) {
-    var body = req.body;
-    request_1.default.post(userMicroserviceUrl + "/subject", { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-app.put('/api/subject/:id', function (req, res) {
-    var body = req.body;
-    var id = req.params.id;
-    request_1.default.put(userMicroserviceUrl + "/subject/" + id, { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-/**
- * message routes
- */
-app.get('/api/message', function (req, res) {
-    request_1.default.get(messageMicroserviceUrl + "/message", {}, function (err, res_, body) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).json(JSON.parse(body));
-    });
-});
-app.get('/api/message/:id', function (req, res) {
-    var id = req.params.id;
-    request_1.default.get(messageMicroserviceUrl + "/message/" + id, {}, function (err, res_, body) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).json(JSON.parse(body));
     });
 });
 /**
@@ -686,54 +470,6 @@ app.get('/api/message/:id', function (req, res) {
 app.post('/api/message', function (req, res) {
     var body = req.body;
     request_1.default.post(messageMicroserviceUrl + "/message", { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-/**
- * message template routes
- */
-app.get('/api/message/template', function (req, res) {
-    request_1.default.get(messageMicroserviceUrl + "/message/template", {}, function (err, res_, body) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body);
-    });
-});
-/**
- * product routes
- */
-app.post('/api/product', function (req, res) {
-    var body = req.body;
-    request_1.default.post(projectMicroserviceUrl + "/product", { json: body }, function (err, res_, body_) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).send(body_);
-    });
-});
-app.get('/api/product', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    return __generator(this, function (_a) {
-        request_1.default.get(projectMicroserviceUrl + "/product", {}, function (err, res_, body) {
-            if (err)
-                res.status(400).send(err);
-            res.status(200).json(JSON.parse(body));
-        });
-        return [2 /*return*/];
-    });
-}); });
-app.get('/api/product/:id', function (req, res) {
-    var id = req.params.id;
-    request_1.default.get(projectMicroserviceUrl + "/product/" + id, {}, function (err, res_, body) {
-        if (err)
-            res.status(400).send(err);
-        res.status(200).json(JSON.parse(body));
-    });
-});
-app.put('/api/product/:id', function (req, res) {
-    var id = req.params.id;
-    var body = req.body;
-    request_1.default.put(projectMicroserviceUrl + "/product/" + id, { json: body }, function (err, res_, body_) {
         if (err)
             res.status(400).send(err);
         res.status(200).send(body_);

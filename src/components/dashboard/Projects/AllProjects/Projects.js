@@ -8,14 +8,17 @@ import grey from "@material-ui/core/colors/grey";
 import List from "@material-ui/core/List";
 import ProjectCard from "./ProjectCard";
 import store from "../../../../store";
-import {getProjectList, getSupervisors} from "../../../../api";
+import {getAllSubjects, getProjectList, getSupervisors} from "../../../../api";
 import {
-    getGetAllProjectAction,
-    getGetSupervisorsAction
+    getAllProjectAction,
+    getSupervisorsAction,
+    getAllSubjectsAction
 } from "../../../../store/actionCreators";
 import {projectStatus} from "../Constants/Constants";
+import Button from "@material-ui/core/Button/Button";
+import {Link} from "react-router-dom";
 
-const styles = {
+const styles = theme => ({
     paper: {
         padding: 10,
         margin: 10,
@@ -27,8 +30,29 @@ const styles = {
         paddingBottom: "3%",
         fontWeight: "bold",
         color: "#094183"
+    },
+    link: {
+        textDecoration: "none",
+        textColor: "white"
+    },
+    allProjectsButton: {
+        position: "absolute",
+        color: "#ffffff",
+        backgroundColor: "#094183",
+        '&:hover': {
+            backgroundColor: "#4074B2",
+            color: "#ffffff",
+        },
+        [theme.breakpoints.up("xl")]: {
+            marginRight: 198
+        },
+        [theme.breakpoints.down("xl")]: {
+            right: 0
+        },
+        bottom: 0
     }
-};
+    
+});
 
 const myIDs = {
     supervisorID: "supervisor 1 me",
@@ -50,13 +74,17 @@ class ViewProjects extends React.Component {
     }
 
     async _reqTodoList() {
-        const result = await getProjectList();
-        const action = getGetAllProjectAction(result);
-        store.dispatch(action);
+        const projects = await getProjectList();
+        const getAllProjectAct = getAllProjectAction(projects);
+        store.dispatch(getAllProjectAct);
 
         const supervisors = await getSupervisors();
-        const getSupsAction = getGetSupervisorsAction(supervisors);
-        store.dispatch(getSupsAction);
+        const getSupervisorsAct = getSupervisorsAction(supervisors);
+        store.dispatch(getSupervisorsAct);
+
+        const subjects = await getAllSubjects();
+        const getAllSubjectsAct = getAllSubjectsAction(subjects);
+        store.dispatch(getAllSubjectsAct);
     }
 
     componentDidMount() {
@@ -105,77 +133,93 @@ class ViewProjects extends React.Component {
 
     render() {
         const {classes} = this.props;
-        const {supervisors} = this.state;
+        const {supervisors, subjects} = this.state;
 
         return (
-            <Grid container justify="flex-end" direction="row"
-                  alignContent="center">
-                <Grid item sm>
-                    <Paper className={classes.paper}>
-                        <Typography variant="h5" className={classes.swimTitle}>
-                            New
-                        </Typography>
-                        <div>
-                            <List dense={true}>
-                                {this._filterProjectsByStatus(projectStatus.new).map(
-                                    (project, index) => (
-                                        <ProjectCard
-                                            _id={project._id}
-                                            key={index}
-                                            project={project}
-                                            supervisors={supervisors}
-                                        />
-                                    )
-                                )}
-                            </List>
-                        </div>
-                    </Paper>
-                </Grid>
-                <Grid item sm>
-                    <Paper className={classes.paper}>
-                        <Typography variant="h5" className={classes.swimTitle}>
-                            In Progress
-                        </Typography>
-                        <div>
-                            <List dense={true}>
-                                {
-                                    this._filterProjectsByStatus(projectStatus.inProgress).map(
+            <div style={{position: "relative"}}>
+                <Grid container justify="flex-end" direction="row"
+                    alignContent="center">
+                    <Grid item sm>
+                        <Paper className={classes.paper}>
+                            <Typography variant="h5" className={classes.swimTitle}>
+                                New
+                            </Typography>
+                            <div>
+                                <List dense={true}>
+                                    {this._filterProjectsByStatus(projectStatus.new).map(
                                         (project, index) => (
                                             <ProjectCard
                                                 _id={project._id}
                                                 key={index}
                                                 project={project}
                                                 supervisors={supervisors}
+                                                subjects={subjects}
                                             />
                                         )
-                                    )
-                                }
-                            </List>
-                        </div>
-                    </Paper>
+                                    )}
+                                </List>
+                            </div>
+                        </Paper>
+                    </Grid>
+                    <Grid item sm>
+                        <Paper className={classes.paper}>
+                            <Typography variant="h5" className={classes.swimTitle}>
+                                In Progress
+                            </Typography>
+                            <div>
+                                <List dense={true}>
+                                    {
+                                        this._filterProjectsByStatus(projectStatus.inProgress).map(
+                                            (project, index) => (
+                                                <ProjectCard
+                                                    _id={project._id}
+                                                    key={index}
+                                                    project={project}
+                                                    supervisors={supervisors}
+                                                    subjects={subjects}
+                                                />
+                                            )
+                                        )
+                                    }
+                                </List>
+                            </div>
+                        </Paper>
+                    </Grid>
+                    <Grid item sm>
+                        <Paper className={classes.paper}>
+                            <Typography variant="h5" className={classes.swimTitle}>
+                                Completed
+                            </Typography>
+                            <div>
+                                <List dense={true}>
+                                    {this._filterProjectsByStatus(projectStatus.completed).map(
+                                        (project, index) => (
+                                            <ProjectCard
+                                                _id={project._id}
+                                                key={index}
+                                                project={project}
+                                                supervisors={supervisors}
+                                                subjects={subjects}
+                                            />
+                                        )
+                                    )}
+                                </List>
+                            </div>
+                        </Paper>
+                    </Grid>
                 </Grid>
-                <Grid item sm>
-                    <Paper className={classes.paper}>
-                        <Typography variant="h5" className={classes.swimTitle}>
-                            Completed
-                        </Typography>
-                        <div>
-                            <List dense={true}>
-                                {this._filterProjectsByStatus(projectStatus.completed).map(
-                                    (project, index) => (
-                                        <ProjectCard
-                                            _id={project._id}
-                                            key={index}
-                                            project={project}
-                                            supervisors={supervisors}
-                                        />
-                                    )
-                                )}
-                            </List>
-                        </div>
-                    </Paper>
-                </Grid>
-            </Grid>
+
+                <Link to={`/dashboard/allProjects`}
+                    className={classes.link}>
+                    <Button
+                        variant="contained"
+                        size="medium"
+                        className={classes.allProjectsButton}
+                    >
+                        View All Projects
+                    </Button>
+                </Link>
+            </div>
         );
     }
 }

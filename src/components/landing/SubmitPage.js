@@ -1,8 +1,9 @@
 import React from "react";
-import { Column, Row } from "simple-flexbox";
 import { Link } from "react-router-dom";
 import UniMelbWrapper from "../uniMelbWrapper/UniMelbWrapper";
 import axios from "axios";
+import { proposalSentConfirmation } from "../dashboard/Email/AutomatedEmailFunctions";
+import { baseURL } from "../../api/index";
 
 class SubmitPage extends React.Component {
   //Check if the input email is valide or not
@@ -28,79 +29,125 @@ class SubmitPage extends React.Component {
       return false;
     }
   };
+
+  checkClient = input => {
+    if (
+      input.firstName === "" ||
+      input.lastname === "" ||
+      !this.ValidateEmail(input.email) ||
+      !this.ValidateContactInfo(input.number) ||
+      !this.ValidateContactInfo(input.officeNumber) ||
+      input.technical === "-1"
+    )
+      return false;
+    return true;
+  };
+
+  checkSecondaryContact = input => {
+    if (
+      input.ci2firstname === "" ||
+      input.ci2lastname === "" ||
+      !this.ValidateEmail(input.ci2email) ||
+      !this.ValidateContactInfo(input.ci2number)
+    ) {
+      return false;
+    }
+    return true;
+  };
+  checkProposalInfo = input => {
+    if (
+      input.outline === "" ||
+      input.beneficiaries === "" ||
+      input.benefits === "" ||
+      input.used === "" ||
+      input.projectName === ""
+    ) {
+      return false;
+    }
+    return true;
+  };
+  checkOrganisationInfo = input => {
+    if (
+      input.organisationName === "" ||
+      input.industryType === "-1" ||
+      input.size === "-1" ||
+      input.organisationBrief === ""
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   // handleClick get the data from form HTML
   // right now it is just console.log data
   // will be change to POST data to the server once it is ready
   handleClick = () => {
+    //Client
     var firstname = document.getElementById("name").value;
     var lastname = document.getElementById("lastname").value;
     var email = document.getElementById("email").value;
     var number = document.getElementById("number").value;
     var officeNumber = document.getElementById("officeNumber").value;
+    var technical = document.getElementById("technical").value;
+    //SecondaryContact
     var ci2firstname = document.getElementById("ci2firstname").value;
     var ci2lastname = document.getElementById("ci2lastname").value;
     var ci2email = document.getElementById("ci2email").value;
     var ci2number = document.getElementById("ci2number").value;
+    //Proposal info
     var outline = document.getElementById("outline").value;
     var beneficiaries = document.getElementById("beneficiaries").value;
     var benefits = document.getElementById("benefits").value;
     var original = document.getElementById("original").value;
     var used = document.getElementById("used").value;
-    var technical = document.getElementById("technical").value;
+    //Orgranisation info
     var organisationName = document.getElementById("organisationName").value;
     var industryType = document.getElementById("industryType").value;
     var size = document.getElementById("size").value;
     var organisationBrief = document.getElementById("organisationBrief").value;
     var projectName = document.getElementById("projectName").value;
-    console.log(
-      firstname,
-      lastname,
-      email,
-      number,
-      officeNumber,
-      ci2firstname,
-      ci2lastname,
-      ci2email,
-      ci2number,
-      technical,
-      organisationName,
-      industryType,
-      size,
-      organisationBrief,
-      projectName,
-      outline,
-      beneficiaries,
-      benefits,
-      original,
-      used
-    );
+
     if (
-      (firstname ||
-        lastname ||
-        email ||
-        number ||
-        officeNumber ||
-        ci2firstname ||
-        ci2lastname ||
-        ci2email ||
-        ci2number ||
-        organisationName ||
-        organisationBrief ||
-        projectName ||
-        outline ||
-        beneficiaries ||
-        benefits ||
-        original) === "" ||
-      (technical || industryType || size) === -1
+      !this.checkClient({
+        firstname,
+        lastname,
+        email,
+        number,
+        officeNumber,
+        technical
+      })
     ) {
-      alert("Please fill in all required fields");
-    } else if (!this.ValidateContactInfo(officeNumber, number.ci2number)) {
-      alert("Please enter a valid phone number");
-    } else if (!this.ValidateEmail(email, ci2email)) {
-      alert("Please enter a valid email");
+      alert("Please fill valid information for the client.");
+    } else if (
+      !this.checkSecondaryContact({
+        ci2firstname,
+        ci2lastname,
+        ci2email,
+        ci2number
+      })
+    ) {
+      alert("Please fill valid information for the secondary contact.");
+    } else if (
+      !this.checkProposalInfo({
+        outline,
+        beneficiaries,
+        benefits,
+        used,
+        projectName
+      })
+    ) {
+      alert("Please fill valid information for the proposal.");
+    } else if (
+      !this.checkOrganisationInfo(
+        organisationName,
+        industryType,
+        size,
+        organisationBrief
+      )
+    ) {
     } else {
       axios
-        .post(`http://localhost:13000/api/proposal/submit`, {
+        .post(baseURL + `/proposal/submit`, {
           firstName: firstname,
           lastName: lastname,
           email: email,
@@ -124,7 +171,10 @@ class SubmitPage extends React.Component {
         })
         .then(function(response) {
           console.log(response);
-          alert("Your proposal has been sent");
+          alert(
+            "Your proposal has been sent! Please check your inbox or spam folder for a confirmation email. Please mark cis.projectmanagementsystem@gmail.com as not spam, as this will be the account that will contact you for updates regarding your proposal. "
+          );
+          proposalSentConfirmation(email, ci2email, firstname, ci2firstname, projectName, outline, beneficiaries, benefits, original, used );
           document.getElementById("myForm").reset();
         })
         .catch(function(error) {
@@ -132,8 +182,6 @@ class SubmitPage extends React.Component {
           alert("Oh no something went wrong please try again later");
         });
     }
-
-    console.log("request sent!");
   };
 
   render() {
@@ -174,8 +222,8 @@ class SubmitPage extends React.Component {
                     <option value="-1">Please select&emsp;</option>
                     <option value="Aged care">Aged care</option>
                     <option value="Agriculture">Agriculture</option>
-                    <option value="Amusement, evens and recreation">
-                      Amusement, evens and recreation
+                    <option value="Amusement, events and recreation">
+                      Amusement, events and recreation
                     </option>
                     <option value="Animal care and veterinary services">
                       Animal care and veterinary services
@@ -228,16 +276,16 @@ class SubmitPage extends React.Component {
                 <div className="styled-select" style={{ marginBottom: "3%" }}>
                   <select id="size">
                     <option value="-1">Please select</option>
-                    <option value="more than 250 employees">
-                      more than 250 employees
+                    <option value="More than 250 employees">
+                      More than 250 employees
                     </option>
-                    <option value="between 50–249 employees">
-                      between 50 – 249 employees
+                    <option value="Between 50 - 249 employees">
+                      Between 50 – 249 employees
                     </option>
-                    <option value="between 10–49 employees">
-                      between 10 – 49 employees
+                    <option value="Between 10 - 49 employees">
+                      Between 10 – 49 employees
                     </option>
-                    <option value="less than 10 employees">
+                    <option value="Less than 10 employees">
                       Less than 10 employees
                     </option>
                   </select>

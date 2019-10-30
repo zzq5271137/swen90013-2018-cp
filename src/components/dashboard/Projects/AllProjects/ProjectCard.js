@@ -25,7 +25,8 @@ const styles = {
         },
         "&:active": {
             backgroundColor: grey[300]
-        }
+        },
+        color: "#000000"
     },
     avatar: {
         backgroundColor: red[500]
@@ -54,7 +55,7 @@ class ProjectCard extends React.Component {
                             </Avatar>
                         }
                         title={project.name}
-                        subheader={project.industryType ? project.industryType : " "}
+                        subheader={project.proposal.client.organisation.name}
                         component="div"
                         className={classes.cardHeader}
                     />
@@ -75,11 +76,27 @@ class ProjectCard extends React.Component {
                         >
                             Supervisor: {this._showSupervisor(project.supervisorId)}
                         </Typography>
+                        <Typography
+                            component="p"
+                            variant="overline"
+                        >
+                            Subject: {this._showSubject(project.proposal.subjectId)}
+                        </Typography>
                     </CardContent>
                 </Link>
             </Card>
         );
     }
+
+    _showSubject = (subjectId) => {
+        const {subjects} = this.props;
+        let subjectName = "NO RELATED SUBJECT";
+        subjects.forEach(sb => {
+            if (sb._id === subjectId)
+                subjectName = sb.name;
+        });
+        return subjectName;
+    };
 
     _showSupervisor = (supervisorId) => {
         const {supervisors} = this.props;
@@ -99,6 +116,7 @@ ProjectCard.propTypes = {
     _id: PropTypes.string.isRequired,
     project: PropTypes.object.isRequired,
     supervisors: PropTypes.array.isRequired,
+    subjects: PropTypes.array.isRequired,
 };
 
 export default withStyles(styles)(ProjectCard);

@@ -20,12 +20,15 @@ import AssignmentIcon from "@material-ui/icons/Assignment";
 import { Link } from "react-router-dom";
 import GavelIcon from "@material-ui/icons/Gavel";
 import PersonIcon from "@material-ui/icons/Person";
+import FaceIcon from "@material-ui/icons/Face";
+import PeopleIcon from "@material-ui/icons/People";
 import Dialog from "@material-ui/core/Dialog";
 import DialogActions from "@material-ui/core/DialogActions";
 import DialogContent from "@material-ui/core/DialogContent";
 import DialogTitle from "@material-ui/core/DialogTitle";
 import Button from "@material-ui/core/Button";
-import store from "../../../store";
+import store from "../../../store"; 
+import { LoginContext } from "../../admin/LoginProvider";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -33,15 +36,16 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 
 const styles = theme => appContainerStyles(theme);
 
-class AppContainer extends React.Component {
+var valueOfContext;
+
+class AppContainer extends React.Component { 
+  static contextType = LoginContext;
+  valueOfContext = this.context; 
+
   state = {
-    mobileOpen: false,
+    mobileOpen: false, 
     open: false,
   };
-
-  componentWillReceiveProps(nextProps) {
-    console.log(nextProps.currentPage);
-  }
 
   _handleDrawerToggle = () => {
     this.setState(state => ({ mobileOpen: !state.mobileOpen }));
@@ -72,9 +76,14 @@ class AppContainer extends React.Component {
       <div>
         <div className={classes.toolbar}>
           <Toolbar>
-            <Typography variant="h6" color="inherit" noWrap>
-              User
-            </Typography>
+          <LoginContext.Consumer>
+            {(context) => (
+ <Typography variant="h6" color="inherit" noWrap>
+ {context.state.userName}
+</Typography>
+            )}
+          
+            </LoginContext.Consumer>
           </Toolbar>
         </div>
         <Divider />
@@ -100,6 +109,28 @@ class AppContainer extends React.Component {
               <GavelIcon />
             </ListItemIcon>
             <ListItemText primary="View Projects" />
+          </ListItem>
+          <ListItem
+            button
+            key="View Student Teams"
+            component={Link}
+            to="/dashboard/teams"
+          >
+            <ListItemIcon>
+              <PeopleIcon />
+            </ListItemIcon>
+            <ListItemText primary="View Student Teams" />
+          </ListItem>
+          <ListItem
+            button
+            key="View Clients"
+            component={Link}
+            to="/dashboard/clients"
+          >
+            <ListItemIcon>
+              <FaceIcon />
+            </ListItemIcon>
+            <ListItemText primary="View Clients" />
           </ListItem>
         </List>
         <Divider />
@@ -173,7 +204,7 @@ class AppContainer extends React.Component {
           </DialogTitle>
           <DialogContent />
           <DialogActions>
-            <Link to="/" className={classes.link}>
+            <Link to="/" className={classes.link} style={{textDecoration: "none"}}>
               <Button onClick={this._handleLogOut} color="primary">
                 Yes
               </Button>

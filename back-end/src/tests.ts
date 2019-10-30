@@ -146,7 +146,7 @@ describe("proposal", () => {
         //POST api/proposal/{proposalId}/accept with body { supervisorName: }
         const supervisorFirstName = "patanamon"
         const supervisorLastName = "thongtanunam"
-        const acceptProposalBody = { subjectId:"Math", acceptReason:"good proposal" }
+        const acceptProposalBody = { subjectId:"Math", acceptReason:"good proposal", userName:`${supervisorFirstName}${supervisorLastName}` }
         const proposalId = "5d4f7769e627a9001120c9f1"
         const acceptProposalUrl = `api/proposal/${proposalId}/accept`
         const proposal = await post<AcceptProposal, {}>(acceptProposalUrl, acceptProposalBody)

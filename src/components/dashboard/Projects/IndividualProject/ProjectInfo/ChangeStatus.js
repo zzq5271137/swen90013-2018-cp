@@ -15,14 +15,29 @@ import InputLabel from "@material-ui/core/InputLabel";
 import {projectStatus} from "../../Constants/Constants";
 import store from "../../../../../store";
 import {updateProjectAction} from "../../../../../store/actionCreators";
+import { LoginContext } from "../../../../admin/LoginProvider";
 
-const styles = {};
+const styles = {
+    confirmButton: {
+        backgroundColor: "#094183",
+        color: "#FFFFFF",
+        "&:hover": {
+            backgroundColor: "#4074B2"
+        }
+    },
+    discardButton: {
+        color: "#094183"
+    },              
+};
+var userName;
 
 class ChangeStatus extends React.Component {
+    static contextType = LoginContext;
+
     constructor(props) {
         super(props);
         this.state = {
-            selectedStatus: "new",
+            selectedStatus: this.props.project.status,
             open: false
         };
     }
@@ -64,6 +79,7 @@ class ChangeStatus extends React.Component {
                                     htmlFor="sp-native-simple">Status</InputLabel>
                                 <Select
                                     native
+                                    defaultValue={this.state.selectedStatus}
                                     onChange={e => this._handleSelect(e)}
                                     input={<Input id="sp-native-simple"/>}
                                 >
@@ -81,16 +97,20 @@ class ChangeStatus extends React.Component {
                         </form>
                     </DialogContent>
                     <DialogActions>
-                        <Button onClick={this._handleClose} color="primary">
-                            Cancel
-                        </Button>
-                        <Button onClick={this._handleOK} color="primary">
+                    <Button onClick={this._handleOK} color="primary" className={classes.confirmButton}>
                             Ok
+                        </Button>
+                        <Button onClick={this._handleClose} color="primary" className={classes.discardButton}>
+                            Cancel
                         </Button>
                     </DialogActions>
                 </Dialog>
             </div>
         );
+    }
+
+    componentDidMount() {
+        userName = this.context;
     }
 
     _handleClickOpen = () => {
@@ -105,15 +125,39 @@ class ChangeStatus extends React.Component {
         this.setState({selectedStatus: e.target.value});
     };
 
+    _formatProjectStatus(status) {
+        if (status === "new") {
+            return "New";
+        } else if (status === "inProgress") {
+            return "In Progress";
+        } else if (status === "completed") {
+            return "Completed";
+        }
+    }
+
     _handleOK = () => {
         const {selectedStatus} = this.state;
         const {project} = this.props;
         project.status = selectedStatus;
+
+        // Add note to project
+        var newNote = {
+            text: "updated the project status to " + this._formatProjectStatus(project.status) + ".",
+            date: Date.now().toString(),    // Date is represented as an integer, stored as a string
+            userName: userName.state.userName,
+        };
+        var notes = project.notes;
+        if (notes) {
+            notes.push(newNote);
+        } else {
+            notes = [newNote];
+        }
+        project.notes = notes;
+
+        // Update project in DB
         const updateProjAction = updateProjectAction(project._id, project);
         store.dispatch(updateProjAction);
         this.setState({open: false});
-
-        alert("Status of project changed to " + this._showProjectStatus(selectedStatus) + ".");
     };
 
     _showProjectStatus = status => {

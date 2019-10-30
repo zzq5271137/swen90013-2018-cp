@@ -1,4 +1,4 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import PropTypes from "prop-types";
 import { withStyles } from "@material-ui/core/styles";
 import Typography from "@material-ui/core/Typography";
@@ -22,6 +22,11 @@ import Select from "@material-ui/core/Select";
 import store from "../../../store";
 import axios from "axios";
 import { ENETUNREACH } from "constants";
+import { constructNormalEmail } from "./EmailHeaderFooter";
+import { LoginContext } from "../../admin/LoginProvider";
+import { sendProjectDetails } from "./AutomatedEmailFunctions";
+import { addNoteAction } from "../../../store/actionCreators";
+import { baseURL } from "../../../api/index";
 
 function rand() {
   return Math.round(Math.random() * 20) - 10;
@@ -47,8 +52,8 @@ const styles = theme => ({
   paper: {
     backgroundColor: theme.palette.background.paper,
     boxShadow: theme.shadows[5],
-    padding: theme.spacing.unit * 4,
-    paddingLeft: theme.spacing.unit * 4,
+    padding: theme.spacing(4),
+    paddingLeft: theme.spacing(4),
     outline: "none"
   },
   formControl: {
@@ -60,9 +65,6 @@ const styles = theme => ({
     display: "flex",
     flexWrap: "wrap"
   },
-  chip: {
-    margin: theme.spacing.unit / 4
-  },
   selectField: {
     [theme.breakpoints.up("md")]: {
       width: 1118
@@ -73,8 +75,8 @@ const styles = theme => ({
   },
   closeButton: {
     position: "absolute",
-    right: theme.spacing.unit,
-    top: theme.spacing.unit,
+    right: theme.spacing(),
+    top: theme.spacing(),
     color: theme.palette.grey[500]
   },
   fab: {
@@ -116,20 +118,17 @@ const MenuProps = {
   dense: "true"
 };
 
-const names = [
-  "Oliver Hansen",
-  "Van Henry",
-  "April Tucker",
-  "Ralph Hubbard",
-  "Omar Alexander",
-  "Carlos Abbott",
-  "Miriam Wagner",
-  "Bradley Wilkerson",
-  "Virginia Andrews",
-  "Kelly Snyder"
-];
+const templatesMap = new Map();
+var templatesNewArray = [];
+var tempCoordinatorNameArray = [];
 
 const nameEmailMap = new Map();
+const coordinatorMap = new Map();
+
+//test username context
+var valueOfContext;
+var context;
+var sendProjectDetailsButton;
 
 const templates = [
   { title: "Template A", message: "template content a" },
@@ -139,6 +138,9 @@ const templates = [
 ];
 
 class EmailModal extends React.Component {
+  static contextType = LoginContext;
+  //valueOfContext = this.context;
+
   constructor(props) {
     super(props);
     this.state = {
@@ -148,34 +150,102 @@ class EmailModal extends React.Component {
       email_recipients: [],
       email_cc: [],
       email_bcc: [],
+      email_subject: "",
       email_template: "",
       email_message: "",
       context: "",
-      available_recipients: []
+      available_recipients: [],
+      templatesNew: []
     };
     this.handleSendEmail = this.handleSendEmail.bind(this);
+    this.handleClickOpen = this.handleClickOpen.bind(this);
+    this.handleClose = this.handleClose.bind(this);
+    this._getStudents = this._getStudents.bind(this);
+  }
+
+  componentDidMount() {
+    //testing context
+    valueOfContext = this.context;
+    console.log("another way ");
+    console.log(valueOfContext);
+    console.log(valueOfContext.state.userName);
+
+    //get students
+
+    axios
+      .get(baseURL + `/template`)
+      .then(function(response) {
+        console.log(response.data);
+        var templates = response.data;
+
+        Object.keys(templates).forEach(function(key) {
+          console.log(key, templates[key].title);
+          templatesNewArray.push(templates[key].title);
+          templatesMap.set(templates[key].title, templates[key].message);
+        });
+      })
+      .catch(function(error) {
+        console.log(error);
+      });
+
+    console.log(this.state.templates);
   }
 
   handleClickOpen = () => {
     this.setState({ open: true });
 
+    //get all coordinators
+
+    var subjects = store.getState().subjects;
+
+    subjects.forEach(s => {
+      if ("coordinator" in s) {
+        var fullNameRole =
+          s.coordinator.firstName +
+          " " +
+          s.coordinator.lastName +
+          " (Coordinator)";
+        nameEmailMap.set(fullNameRole, s.coordinator.email);
+        this.state.available_recipients.push(fullNameRole);
+      }
+    });
+
     //check the URL to determine the context of the email
     var url = window.location.href;
     var split = url.split("/");
-    var context = split[4];
+    context = split[4];
     console.log(split[4]);
 
+    var clientName =
+      store.getState().proposal.client.firstName +
+      " " +
+      store.getState().proposal.client.lastName +
+      " (Client)";
+    var clientEmail = store.getState().proposal.client.email;
+    var clientSecondaryName =
+      store.getState().proposal.client.secondaryContactFirstName +
+      " " +
+      store.getState().proposal.client.secondaryContactLastName +
+      " (Secondary Contact)";
+    var clientSecondaryEmail = store.getState().proposal.client
+      .secondaryContactEmail;
+
     if (split[4] == "proposals") {
-      var clientName = store.getState().proposal.client.firstName;
-      var clientEmail = store.getState().proposal.client.email;
       nameEmailMap.set(clientName, clientEmail);
-      this.setState({
-        available_recipients: [clientName]
-      });
+      this.state.available_recipients.push(clientName);
+
+      nameEmailMap.set(clientSecondaryName, clientSecondaryEmail);
+
+      for (const x in tempCoordinatorNameArray) {
+        this.state.email_recipients.push(x);
+      }
+
+      this.state.available_recipients.push(clientSecondaryName);
     } else if (split[4] == "projects") {
-      this.state.available_recipients.push(
-        store.getState().proposal.client.firstName
-      );
+      for (const x in tempCoordinatorNameArray) {
+        this.state.email_recipients.push(x);
+      }
+      this.state.available_recipients.push(clientName, clientSecondaryName);
       nameEmailMap.set(
         store.getState().proposal.client.firstName,
         store.getState().proposal.client.email
@@ -195,10 +265,18 @@ class EmailModal extends React.Component {
     }
   };
 
+  componentWillUnmount() {
+    templatesNewArray = [];
+    tempCoordinatorNameArray = [];
+  }
+
   handleClose = () => {
     this.setState({ available_recipients: [] });
     this.setState({ email_recipients: [] });
+    this.setState({ email_cc: [] });
     nameEmailMap.clear();
+    // templatesNewArray = [];
+    // tempCoordinatorNameArray = [];
     this.setState({ open: false });
   };
 
@@ -209,8 +287,10 @@ class EmailModal extends React.Component {
       this.setState({ email_cc: event.target.value });
     } else if (emailField == "email_bcc") {
       this.setState({ email_bcc: event.target.value });
+    } else if (emailField == "email_subject") {
+      this.setState({ email_subject: event.target.value });
     } else if (emailField == "email_template") {
-      this.setState({ email_template: event.target.value });
+      this.setState({ templatesNew: event.target.value });
       let email_message = this.getEmailMessage(event.target.value);
       this.setState({ email_message: email_message });
     }
@@ -234,39 +314,35 @@ class EmailModal extends React.Component {
   };
 
   getEmailMessage(template_title) {
-    for (var i = 0; i < templates.length; i++) {
-      if (templates[i].title === template_title) {
-        return templates[i].message;
-      }
-    }
+    // for (var i = 0; i < templates.length; i++) {
+    //   if (templates[i].title === template_title) {
+    //     return templates[i].message;
+    //   }
+    // }
+    return templatesMap.get(template_title);
   }
 
   handleSendEmail() {
     var emails = [];
+    var emailscc = [];
     this.state.email_recipients.map(name =>
       emails.push(nameEmailMap.get(name))
     );
 
+    this.state.email_cc.map(name => emailscc.push(nameEmailMap.get(name)));
+
+    console.log(emails);
+
     //send multiple posts
 
-    //templates
-    // axios
-    //   .get(`http://localhost:13000/api/message/template`)
-    //   .then(function(response) {
-    //     console.log(response);
-    //   })
-    //   .catch(function(error) {
-    //     console.log(error);
-    //   });
-
     axios
-      .post(`http://35.197.167.244/message`, {
-        from: "thissupervisor",
-        to: "chamira.balasuriya@gmail.com",
-        subject: "new",
-        html: "<p>testttt</p>",
+      .post(`http://172.26.88.142:8081/message`, {
+        from: "CIS Project Management",
+        to: emails,
+        subject: this.state.email_subject,
+        html: constructNormalEmail(this.state.email_message),
         projectType: "fdafdsa",
-        cc: ["chamira.b@live.com.au"],
+        cc: emailscc,
         projectID: ""
       })
       .then(function(response) {
@@ -275,11 +351,40 @@ class EmailModal extends React.Component {
       .catch(function(error) {
         console.log(error);
       });
-    alert("sending email");
+
     this.setState({ email_recipients: [] });
     this.setState({ available_recipients: [] });
     nameEmailMap.clear();
     this.setState({ open: false });
+
+    this._sendNote();
+  }
+
+  _sendNote() {
+    const { objectType, object } = this.props;
+    var newNote = {
+      text:
+        "sent an email to " +
+        this.state.email_recipients +
+        "about " +
+        this.state.email_subject +
+        ": " +
+        this.state.email_message,
+      date: Date.now().toString(),
+      userName: valueOfContext.state.userName
+    };
+    var notes = object.notes;
+    if (notes) {
+      notes.push(newNote);
+    } else {
+      notes = [newNote];
+    }
+    object.notes = notes;
+
+    // Send PUT request
+    const addNoteAct = addNoteAction(objectType, object._id, object);
+    console.log(addNoteAct);
+    store.dispatch(addNoteAct);
   }
 
   unsubscribe = store.subscribe(this.handleChange);
@@ -287,6 +392,29 @@ class EmailModal extends React.Component {
   _handleEmailContentChange(e) {
     const email_message = e.target.value;
     this.setState({ email_message: email_message });
+  }
+
+  _getStudents() {
+    var teams = store.getState().project.products;
+    var students = [];
+
+    teams.map(individualTeam => students.push(individualTeam.students));
+
+    var studentsFlattened = students.flat();
+
+    studentsFlattened.map(student => {
+      students.push(student.email);
+    });
+
+    sendProjectDetails(
+      students,
+      store.getState().project.name,
+      store.getState().project.proposal.outlineOfProject,
+      store.getState().project.proposal.client.organisation.name,
+      store.getState().project.proposal.client.firstName,
+      store.getState().project.proposal.client.lastName
+    );
+    this.handleClose();
   }
 
   render() {
@@ -368,7 +496,7 @@ class EmailModal extends React.Component {
                   )}
                   MenuProps={MenuProps}
                 >
-                  {names.map(name => (
+                  {this.state.available_recipients.map(name => (
                     <MenuItem key={name} value={name} style={{ width: "100%" }}>
                       {name}
                     </MenuItem>
@@ -398,13 +526,24 @@ class EmailModal extends React.Component {
                   )}
                   MenuProps={MenuProps}
                 >
-                  {names.map(name => (
+                  {this.state.available_recipients.map(name => (
                     <MenuItem key={name} value={name} style={{ width: "100%" }}>
                       {name}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+              <br />
+              <TextField
+                id="standard-with-placeholder"
+                label="Please enter a subject"
+                placeholder=""
+                className={classes.textField}
+                margin="normal"
+                fullWidth
+                style={{ maxWidth: 300, minWidth: 120 }}
+                onChange={e => this.handleChange("email_subject", e)}
+              />
               <br />
               <FormControl className={classes.formControl}>
                 <InputLabel htmlFor="email_template">
@@ -413,18 +552,18 @@ class EmailModal extends React.Component {
                 <Select
                   className={classes.selectField}
                   autoWidth="true"
-                  value={this.state.email_template}
+                  value={this.state.templatesNew}
                   onChange={e => this.handleChange("email_template", e)}
                   input={<Input id="email_template" />}
                   MenuProps={MenuProps}
                 >
-                  {templates.map((template, index) => (
+                  {templatesNewArray.map(template => (
                     <MenuItem
-                      key={index}
-                      value={template.title}
+                      key={template}
+                      value={template}
                       style={{ width: "100%" }}
                     >
-                      {template.title}
+                      {template}
                     </MenuItem>
                   ))}
                 </Select>
@@ -460,6 +599,13 @@ class EmailModal extends React.Component {
             >
               Discard
             </Button>
+            {console.log(context)}
+            {context == "projects" ? (
+              <Button onClick={this._getStudents} color="primary">
+                {" "}
+                Send Project Details{" "}
+              </Button>
+            ) : null}
           </DialogActions>
         </Dialog>
       </div>
@@ -468,4 +614,3 @@ class EmailModal extends React.Component {
 }
 
 export default withStyles(styles)(EmailModal);
-

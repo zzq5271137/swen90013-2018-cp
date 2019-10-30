@@ -3,10 +3,12 @@ import {withStyles} from "@material-ui/core/styles";
 import Grid from "@material-ui/core/Grid";
 import ProjectInfo from "./ProjectInfo/ProjectInfo";
 import Notes from "../../Notes/Notes";
-import {getProjectById, getProposalById} from "../../../../api";
+import {getProjectById, getProposalById, getSupervisors, getAllSubjects} from "../../../../api";
 import {
-    getGetProjectByIdAction,
-    getGetProposalByIdAction
+    getProjectByIdAction,
+    getProposalByIdAction,
+    getAllSubjectsAction,
+    getSupervisorsAction
 } from "../../../../store/actionCreators";
 import store from "../../../../store";
 import {Paper} from "@material-ui/core";
@@ -21,7 +23,7 @@ const styles = theme => ({
         height: 140
     },
     paper: {
-        padding: theme.spacing.unit * 2,
+        padding: theme.spacing(2),
         color: theme.palette.text.secondary,
         backgroundColor: grey[50]
     },
@@ -42,12 +44,20 @@ class ProjectById extends React.Component {
 
     async _reqTodoList(projID) {
         const project = await getProjectById(projID);
-        const getProAction = getGetProjectByIdAction(project);
+        const getProAction = getProjectByIdAction(project);
         store.dispatch(getProAction);
 
-        const proposalResult = await getProposalById(this.state.project.proposalId);
-        const proposalAction = getGetProposalByIdAction(proposalResult);
+        const proposal = await getProposalById(this.state.project.proposalId);
+        const proposalAction = getProposalByIdAction(proposal);
         store.dispatch(proposalAction);
+
+        const supervisors = await getSupervisors();
+        const getSupervisorsAct = getSupervisorsAction(supervisors);
+        store.dispatch(getSupervisorsAct);
+
+        const subjects = await getAllSubjects();
+        const getAllSubjectsAct = getAllSubjectsAction(subjects);
+        store.dispatch(getAllSubjectsAct);
     }
 
     componentDidMount() {
@@ -57,30 +67,39 @@ class ProjectById extends React.Component {
 
     render() {
         const {classes} = this.props;
+        const {project, proposal, subjects, supervisors} = this.state;
 
         return (
             <Grid
                 container
-                spacing={16}
+                spacing={3}
                 justify="flex-end"
                 direction="row"
             >
                 <Grid item xs={6}>
                     <Paper className={classes.paper} style={{height: "100%"}}>
-                        <ProjectInfo/>
+                        <ProjectInfo 
+                            project={project} 
+                            proposal={proposal}
+                            supervisors={supervisors}
+                            subjects={subjects}/>
                     </Paper>
                 </Grid>
                 <Grid item xs={6}>
                     <Paper className={classes.paper}
                            style={{position: "relative"}}>
-                        <TeamPage products={this.state.project.products}/>
+                        <TeamPage
+                            products={project.products}
+                        />
                     </Paper>
                 </Grid>
                 <Grid item xs={12} className={classes.notes}>
                     <Paper className={classes.paper}
                            style={{marginBottom: "20px"}}>
                         <Notes
-                            notes={this.state.project.notes}
+                            notes={project.notes}
+                            object={project}
+                            objectType={"project"}
                         />
                     </Paper>
                 </Grid>

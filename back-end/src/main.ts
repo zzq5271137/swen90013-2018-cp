@@ -1,9 +1,10 @@
-import express from 'express'
+import express, { Response } from 'express'
 import bodyParser from 'body-parser'
 import ldapStrategy from 'passport-ldapauth'
 import passport from 'passport'
 import cookieSession from 'cookie-session'
 import request from 'request'
+import multer from 'multer'
 
 /**
  * testing utility functions
@@ -40,6 +41,7 @@ export interface Proposal extends MaybeId {
 export interface ProposalNote {
   date: string
   text: string
+  userName:string
 }
 export interface Product extends MaybeId {
   name:string
@@ -69,6 +71,7 @@ export interface Project extends MaybeId {
   subjectId?:string
   proposalId: string
   isInternal: boolean
+  dateCreated: string
 }
 export type ProjectDetail = Project & { proposal:ProposalDetail } & { products:Product[] }
 export interface Supervisor extends MaybeId {
@@ -95,6 +98,7 @@ export interface Client extends MaybeId {
   secondaryContactNumber: string
   flag?: boolean
   organisation: Organisation
+  notes: string[]
 }
 export interface Organisation {
   name: string
@@ -134,9 +138,11 @@ export interface SubmitProposal {
 export interface AcceptProposal {
   subjectId:string
   acceptReason: string
+  userName:string
 }
 export interface RejectProposal {
   rejectReason: string
+  userName:string
 }
 
 /**
@@ -184,6 +190,17 @@ app.use((req, res, next) => {
 */
 
 /**
+ * safe json parse
+ */
+function jsonParse<T>(item:any) : T | undefined {
+  try {
+    return JSON.parse(item)
+  } catch {
+    return undefined as any as T
+  }
+}
+
+/**
  * config - microservice url's
  */
 const userMicroserviceUrl = "http://35.244.89.250"
@@ -223,8 +240,8 @@ export const get = <T>(url:string) => {
 /**
  * auth routes
  */
-app.post('/api/login', passport.authenticate('ldapauth'), (req, res) => {
-  res.status(200).send("success")
+app.post('/api/login', passport.authenticate('ldapauth'), (req, res:Response) => {
+  res.status(200).json(req.user)
 }) 
 
 /**
@@ -234,7 +251,7 @@ app.get('/api/project', async (req, res) => {
   //embed client into project. use proposal to obtain client
   const projects_ = await get<string>(`${projectMicroserviceUrl}/project`)
   if(!projects_) return res.status(400).send("get projects failed: project microservice returned undefined")
-  const projects = JSON.parse(projects_) as Project[]
+  const projects = jsonParse(projects_) as Project[]
   const projectDetails = await Promise.all(projects.map(async project => {
     const result = await addDetailsToProject(project)
     if(typeof result == "string") return project
@@ -253,37 +270,43 @@ app.post('/api/project', (req, res) => {
 
 
 async function addDetailsToProject(project:Project) : Promise<ProjectDetail | string> {
-  const proposalId = project.proposalId
-  if(!proposalId) return "get project failed: project does not have proposalId"
-  const proposalString = await get<string>(`${projectMicroserviceUrl}/proposal/${project.proposalId}`)
-  if(!proposalString) return "get project failed: project microservice returned undefined for proposal"
-  const proposal = JSON.parse(proposalString) as Proposal
-  if(!proposal) return "get project failed: project microservice return invalid proposal"
-  const clientId = proposal.clientId
-  if(!clientId) return "get project failed: proposal does not have client id"
-  const clientString = await get<string>(`${userMicroserviceUrl}/client/${clientId}`)
-  if(!clientString) return "get project failed: user microservice returned undefined for client"
-  const client = JSON.parse(clientString)
-  const productsString = await get<string>(`${projectMicroserviceUrl}/product`)
-  if(!productsString) return "get project failed: project microservice returned undefined for products"
-  const products = JSON.parse(productsString) as Product[]
-  const products_ = products.filter(p => p.projectId == project._id)
-  const projectDetail_ : ProjectDetail = {
-    ...project,
-    proposal: {
-      ...proposal,
-      client: client
-    },
-    products: products_
+  try {
+    if(!project) return "get project failed: project is undefined"
+    const proposalId = project.proposalId
+    if(!proposalId) return "get project failed: project does not have proposalId"
+    const proposalString = await get<string>(`${projectMicroserviceUrl}/proposal/${project.proposalId}`)
+    if(!proposalString) return "get project failed: project microservice returned undefined for proposal"
+    const proposal = jsonParse(proposalString) as Proposal
+    if(!proposal) return "get project failed: project microservice return invalid proposal"
+    const clientId = proposal.clientId
+    if(!clientId) return "get project failed: proposal does not have client id"
+    const clientString = await get<string>(`${userMicroserviceUrl}/client/${clientId}`)
+    if(!clientString) return "get project failed: user microservice returned undefined for client"
+    const client = jsonParse(clientString) as Client
+    const productsString = await get<string>(`${projectMicroserviceUrl}/product`)
+    if(!productsString) return "get project failed: project microservice returned undefined for products"
+    const products = jsonParse(productsString) as Product[]
+    const products_ = products.filter(p => p.projectId == project._id)
+    const projectDetail_ : ProjectDetail = {
+      ...project,
+      proposal: {
+        ...proposal,
+        client: client
+      },
+      products: products_
+    }
+    return projectDetail_
+  } catch (e) {
+    return `failed to get project details for project. ${e}`
   }
-  return projectDetail_
+  
 }
 
 app.get('/api/project/:id', async (req, res) => {
   const id = req.params.id
   const project_ = await get<string>(`${projectMicroserviceUrl}/project/${id}`)
   if(!project_) return "get project failed: project microservice returned undefined for project"
-  const project = JSON.parse(project_) as Project
+  const project = jsonParse(project_) as Project
   const result = await addDetailsToProject(project)
   if(typeof result == "string") return res.status(400).send(result)
   return res.status(200).json(result)
@@ -304,13 +327,13 @@ app.put('/api/project/:id', (req, res) => {
 app.get('/api/proposal', async (req, res) => {
   const proposals_ = await get<string>(`${projectMicroserviceUrl}/proposal`)
   if(!proposals_) return res.status(400).send("get proposals failed: project microservice returned undefined")
-  const proposals = JSON.parse(proposals_) as HasClientId[]
+  const proposals = jsonParse(proposals_) as HasClientId[]
   const proposalDetails = await Promise.all(proposals.map(async proposal => {
     const clientId = proposal.clientId
     if(!clientId) return proposal
     const clientString = await get<string>(`${userMicroserviceUrl}/client/${proposal.clientId}`)
     if(!clientString) return proposal
-    const client : Client = JSON.parse(clientString)
+    const client = jsonParse(clientString) as Client
     const proposalDetails_ = {
       ...proposal,
       client: client
@@ -337,13 +360,13 @@ app.post('/api/proposal/:id/accept', async (req, res) => {
   //get proposal by id
   const proposalString = await get<string>(`${projectMicroserviceUrl}/proposal/${proposalId}`)
   if(!proposalString) return res.status(400).send(`accept proposal failed: could not find proposal with id ${proposalId}`)
-  const proposal : Proposal = JSON.parse(proposalString)
+  const proposal = jsonParse(proposalString) as Proposal
 
   //update proposal status field to approved
   const proposal_ : Proposal = { 
     ...proposal, 
     status:"approved", 
-    notes:[ ...proposal.notes? proposal.notes: [], ({ text:body.acceptReason, date:`${Date.now()}` }) ],
+    notes:[ ...proposal.notes? proposal.notes: [], ({ text:body.acceptReason, date:`${Date.now()}`, userName:body.userName }) ],
     subjectId: body.subjectId
   }
   const updateProposal = await put(`${projectMicroserviceUrl}/proposal/${proposalId}`, proposal_)
@@ -356,6 +379,7 @@ app.post('/api/proposal/:id/accept', async (req, res) => {
     isInternal: false,
     proposalId: proposalId,
     //subjectId: body.subjectId
+    dateCreated: new Date(Date.now()).toDateString()
   }
   const newProject = await post<Project, HasId>(`${projectMicroserviceUrl}/project`, project)
   if(!newProject) return res.status(400).send(`accept proposal failed: could not create project from proposal`)
@@ -375,13 +399,13 @@ app.post('/api/proposal/:id/reject', async (req, res) => {
   //get proposal by id
   const proposalString = await get<string>(`${projectMicroserviceUrl}/proposal/${proposalId}`)
   if(!proposalString) return res.status(400).send(`reject proposal failed: could not find proposal with id ${proposalId}`)
-  const proposal : Proposal = JSON.parse(proposalString)
+  const proposal = jsonParse(proposalString) as Proposal
 
   //update proposal status field to reject
   const proposal_ : Proposal = { 
     ...proposal, 
     status:"reject", 
-    notes:[ ...proposal.notes? proposal.notes: [], ({ date:"", text:body.rejectReason } as ProposalNote) ] 
+    notes:[ ...proposal.notes? proposal.notes: [], ({ date:`${Date.now()}`, text:body.rejectReason, userName:body.userName } as ProposalNote) ] 
   }
   const updateProposal = await put(`${projectMicroserviceUrl}/proposal/${proposalId}`, proposal_)
   if(!updateProposal) return res.status(400).send(`reject proposal failed: could not update status of proposal with id ${proposalId} to reject`)
@@ -411,7 +435,8 @@ app.post('/api/proposal/submit', async (req, res) => {
       description: body.organisationBrief,
       size: body.size,
       number: parseFloat(body.officeNumber)
-    }
+    },
+    notes: []
   }
 
   //create client from client info and get id
@@ -444,12 +469,12 @@ app.get('/api/proposal/:id', async (req, res) => {
   const id = req.params.id
   const proposal_ = await get<string>(`${projectMicroserviceUrl}/proposal/${id}`)
   if(!proposal_) return res.status(400).send("get proposal failed: project microservice returned undefined for proposal")
-  const proposal = JSON.parse(proposal_) as HasClientId
+  const proposal = jsonParse(proposal_) as HasClientId
   const clientId = proposal.clientId
   if(!clientId) return proposal
   const clientString = await get<string>(`${userMicroserviceUrl}/client/${proposal.clientId}`)
   if(!clientString) return res.status(400).send("get proposal failed: user microservice returned undefined for client")
-  const client = JSON.parse(clientString)
+  const client = jsonParse(clientString)
   const proposalDetail_ = {
     ...proposal,
     client: client
@@ -560,7 +585,15 @@ app.get('/api/supervisor/:id', (req, res) => {
   const id = req.params.id
   request.get(`${userMicroserviceUrl}/supervisor/${id}`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).json(JSON.parse(body))
+    res.status(200).json(jsonParse(body))
+  })
+})
+
+app.delete('/api/supervisor/:id', (req, res) => {
+  const id = req.params.id
+  request.delete(`${userMicroserviceUrl}/supervisor/${id}`, (err, res_, body_) => {
+    if(err) res.status(400).send(err)
+    res.status(200).send(body_)
   })
 })
 
@@ -578,7 +611,15 @@ app.post('/api/coordinator', (req, res) => {
 app.get('/api/coordinator', (req, res) => {
   request.get(`${userMicroserviceUrl}/coordinator`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).json(JSON.parse(body))
+    res.status(200).json(jsonParse(body))
+  })
+})
+
+app.get('/api/coordinator/:id', (req, res) => {
+  const id = req.params.id
+  request.get(`${userMicroserviceUrl}/coordinator/${id}`, {}, (err, res_, body) => {
+    if(err) res.status(400).send(err)
+    res.status(200).json(jsonParse(body))
   })
 })
 
@@ -591,6 +632,14 @@ app.put('/api/coordinator/:id', (req, res) => {
   })
 })
 
+app.delete('/api/coordinator/:id', (req, res) => {
+  const id = req.params.id
+  request.delete(`${userMicroserviceUrl}/coordinator/${id}`, (err, res_, body_) => {
+    if(err) res.status(400).send(err)
+    res.status(200).send(body_)
+  })
+})
+
 
 /**
  * subject routes
@@ -598,13 +647,13 @@ app.put('/api/coordinator/:id', (req, res) => {
 app.get('/api/subject', async (req, res) => {
   const subjects_ = await get<string>(`${userMicroserviceUrl}/subject`)
   if(!subjects_) return res.status(400).send("get subjects failed: user microservice returned undefined")
-  const subjects = JSON.parse(subjects_) as HasCoordinatorId[]
+  const subjects = jsonParse(subjects_) as HasCoordinatorId[]
   const subjectDetails = await Promise.all(subjects.map(async subject => {
     const coordinatorId = subject.coordinatorId
     if(!coordinatorId) return subject
     const coordinatorString = await get<string>(`${userMicroserviceUrl}/coordinator/${subject.coordinatorId}`)
     if(!coordinatorString) return subjects
-    const coordinator = JSON.parse(coordinatorString)
+    const coordinator = jsonParse(coordinatorString)
     const subjectDetails_ = {
       ...subject,
       coordinator: coordinator
@@ -612,6 +661,14 @@ app.get('/api/subject', async (req, res) => {
     return subjectDetails_
   }))
   res.status(200).send(subjectDetails)
+})
+
+app.get('/api/subject/:id', (req, res) => {
+  const id = req.params.id
+  request.get(`${userMicroserviceUrl}/subject/${id}`, {}, (err, res_, body) => {
+    if(err) res.status(400).send(err)
+    res.status(200).json(jsonParse(body))
+  })
 })
 
 app.post('/api/subject', (req, res) => {
@@ -631,13 +688,21 @@ app.put('/api/subject/:id', (req, res) => {
   })
 })
 
+app.delete('/api/subject/:id', (req, res) => {
+  const id = req.params.id
+  request.delete(`${userMicroserviceUrl}/subject/${id}`, (err, res_, body_) => {
+    if(err) res.status(400).send(err)
+    res.status(200).send(body_)
+  })
+})
+
 /**
  * message routes
  */
 app.get('/api/message', (req, res) => {
   request.get(`${messageMicroserviceUrl}/message`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).json(JSON.parse(body))
+    res.status(200).json(jsonParse(body))
   })
 })
 
@@ -645,7 +710,7 @@ app.get('/api/message/:id', (req, res) => {
   const id = req.params.id
   request.get(`${messageMicroserviceUrl}/message/${id}`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).json(JSON.parse(body))
+    res.status(200).json(jsonParse(body))
   })
 })
 
@@ -671,10 +736,28 @@ app.post('/api/message', (req, res) => {
 /**
  * message template routes
  */
-app.get('/api/message/template', (req, res) => {
-  request.get(`${messageMicroserviceUrl}/message/template`, {}, (err, res_, body) => {
+app.get('/api/template', (req, res) => {
+  request.get(`${messageMicroserviceUrl}/template`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).send(body)
+    res.status(200).json(jsonParse(body))
+  })
+})
+
+app.put('/api/template/:id', (req, res) => {
+  const id = req.params.id
+  const body = req.body
+  request.put(`${messageMicroserviceUrl}/template/${id}`, { json:body }, (err, res_, body_) => {
+    if(err) res.status(400).send(err)
+    res.status(200).send(body_)
+  })
+})
+
+app.post('/api/template/:id', (req, res) => {
+  const id = req.params.id
+  const body = req.body
+  request.post(`${messageMicroserviceUrl}/template/${id}`, { json:body }, (err, res_, body_) => {
+    if(err) res.status(400).send(err)
+    res.status(200).send(body_)
   })
 })
 
@@ -692,7 +775,7 @@ app.post('/api/product', (req, res) => {
 app.get('/api/product', async (req, res) => {
   request.get(`${projectMicroserviceUrl}/product`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).json(JSON.parse(body))
+    res.status(200).json(jsonParse(body))
   })
 })
 
@@ -700,7 +783,7 @@ app.get('/api/product/:id', (req, res) => {
   const id = req.params.id
   request.get(`${projectMicroserviceUrl}/product/${id}`, {}, (err, res_, body) => {
     if(err) res.status(400).send(err)
-    res.status(200).json(JSON.parse(body))
+    res.status(200).json(jsonParse(body))
   })
 })
 
@@ -713,6 +796,49 @@ app.put('/api/product/:id', (req, res) => {
   })
 })
 
+/**
+ * upload doc
+ */
+app.post('/api/upload',function(req, res) {
+  
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'public')
+    },
+    filename: function (req, file, cb) {
+      cb(null, Date.now() + '-' +file.originalname )
+    }
+  })
+  
+  const upload = multer({ storage: storage }).array('file')
+
+  upload(req, res, function (err) {
+   
+      if (err) {
+          return res.status(500).json(err)
+      } 
+      
+      return res.status(200).send(req.file)
+      // Everything went fine.
+    })
+    
+});
+
+/**
+ * reset system data to initial state
+ */
+app.post('/api/reset', async (req, res) => {
+  const project = await post(`${projectMicroserviceUrl}/thanosta`, {})
+  if(!project) return res.status(400).send("project microservice reset failed")
+
+  const user = await post(`${userMicroserviceUrl}/Thanosta`, {})
+  if(!user) return res.status(400).send("user microservice reset failed")
+
+  const message = await post(`${messageMicroserviceUrl}/thanosta`, {})
+  if(!message) return res.status(400).send("message microservice reset failed")
+
+  return res.status(200).send("reset successful")
+})
 
 /**
  * starts server
